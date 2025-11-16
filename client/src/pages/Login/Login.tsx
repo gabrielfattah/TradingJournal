@@ -57,6 +57,8 @@ const Login = observer(() => {
 
   const toggleMode = () => {
     setIsLogin(!isLogin);
+    setUsername('');
+    setPassword('');
     authStore.clearError();
   };
 
