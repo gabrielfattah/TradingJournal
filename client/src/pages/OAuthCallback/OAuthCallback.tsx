@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { authStore } from '../../stores';
 import styles from './OAuthCallback.module.css';
 
 const OAuthCallback = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Get authorization code from URL
+      // Google redirects with credential in hash fragment
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const credential = hashParams.get('id_token') || hashParams.get('credential');
+
+      // Also check query parameters
+      const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get('code');
       const errorParam = searchParams.get('error');
 
@@ -20,30 +24,49 @@ const OAuthCallback = () => {
         return;
       }
 
-      if (!code) {
-        setError('No authorization code received');
-        setTimeout(() => navigate('/login'), 3000);
+      // Try credential first (for redirect mode with GoogleLogin)
+      if (credential) {
+        try {
+          const success = await authStore.loginWithGoogle(credential);
+
+          if (success) {
+            navigate('/dashboard');
+          } else {
+            setError(authStore.error || 'Login failed');
+            setTimeout(() => navigate('/login'), 3000);
+          }
+        } catch (err) {
+          setError('An unexpected error occurred');
+          setTimeout(() => navigate('/login'), 3000);
+        }
         return;
       }
 
-      try {
-        // Send code to backend
-        const success = await authStore.loginWithGoogleCode(code);
+      // Fallback to code (for auth-code flow)
+      if (code) {
+        try {
+          const success = await authStore.loginWithGoogleCode(code);
 
-        if (success) {
-          navigate('/dashboard');
-        } else {
-          setError(authStore.error || 'Login failed');
+          if (success) {
+            navigate('/dashboard');
+          } else {
+            setError(authStore.error || 'Login failed');
+            setTimeout(() => navigate('/login'), 3000);
+          }
+        } catch (err) {
+          setError('An unexpected error occurred');
           setTimeout(() => navigate('/login'), 3000);
         }
-      } catch (err) {
-        setError('An unexpected error occurred');
-        setTimeout(() => navigate('/login'), 3000);
+        return;
       }
+
+      // No credential or code found
+      setError('No authentication data received');
+      setTimeout(() => navigate('/login'), 3000);
     };
 
     handleCallback();
-  }, [searchParams, navigate]);
+  }, [navigate]);
 
   return (
     <div className={styles.container}>
