@@ -89,17 +89,6 @@ export const authAPI = {
     });
     return response.data;
   },
-
-  /**
-   * Login with Google authorization code (redirect mode)
-   * @param code - Authorization code from Google OAuth redirect
-   */
-  googleCodeLogin: async (code: string): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/api/auth/google/callback', {
-      code,
-    });
-    return response.data;
-  },
 };
 
 /**

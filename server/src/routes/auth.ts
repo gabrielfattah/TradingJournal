@@ -21,18 +21,6 @@ const MIN_PASSWORD_LENGTH = 6;
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /**
- * Google OAuth token response interface
- */
-interface GoogleTokenResponse {
-  access_token: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  token_type: string;
-  id_token: string;
-}
-
-/**
  * Helper: Generate JWT token for authenticated user
  */
 function generateAuthToken(userId: string, username: string): string {
@@ -173,77 +161,6 @@ router.post('/google', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Google OAuth error:', error);
     res.status(401).json({ error: 'Invalid Google credentials' });
-  }
-});
-
-/**
- * POST /api/auth/google/callback
- * Handle Google OAuth redirect callback (Redirect mode)
- * Exchanges authorization code for tokens and authenticates user
- */
-router.post('/google/callback', async (req: Request, res: Response) => {
-  try {
-    const { code } = req.body;
-
-    // Validate authorization code
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' });
-    }
-
-    // Exchange authorization code for tokens
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: 'http://localhost:5173/auth/callback',
-        grant_type: 'authorization_code',
-      }),
-    });
-
-    // Check if token exchange was successful
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error('Token exchange failed:', errorData);
-      return res.status(401).json({ error: 'Failed to exchange authorization code' });
-    }
-
-    const tokens = await tokenResponse.json() as GoogleTokenResponse;
-
-    // Verify the received ID token
-    const ticket = await googleClient.verifyIdToken({
-      idToken: tokens.id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-    if (!payload) {
-      return res.status(401).json({ error: 'Invalid Google token' });
-    }
-
-    // Extract user information from Google payload
-    const googleId = payload.sub;
-    const email = payload.email!;
-
-    // Find existing user or create new one
-    let user = getUserByGoogleId(googleId);
-    if (!user) {
-      user = createOAuthUser(googleId, email, 'google');
-    }
-
-    // Generate JWT authentication token
-    const token = generateAuthToken(user.id, user.email || user.username!);
-
-    // Return token and username
-    res.json({
-      token,
-      username: user.email || user.username
-    });
-  } catch (error) {
-    console.error('Google OAuth callback error:', error);
-    res.status(401).json({ error: 'Google authentication failed' });
   }
 });
 

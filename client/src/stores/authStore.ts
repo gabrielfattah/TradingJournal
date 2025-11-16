@@ -101,24 +101,6 @@ class AuthStore {
   }
 
   /**
-   * Login with Google authorization code (redirect mode)
-   */
-  async loginWithGoogleCode(code: string): Promise<boolean> {
-    this.isLoading = true;
-
-    try {
-      const response = await authAPI.googleCodeLogin(code);
-      this.saveAuthData(response.token, response.username);
-      return true;
-    } catch (err) {
-      this.handleAuthError(err, 'Google login failed');
-      return false;
-    } finally {
-      this.isLoading = false;
-    }
-  }
-
-  /**
    * Logout current user
    */
   logout(): void {
