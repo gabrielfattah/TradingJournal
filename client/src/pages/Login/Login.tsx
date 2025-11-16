@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
 import { GoogleLogin } from '@react-oauth/google';
+import type { CredentialResponse } from '@react-oauth/google';
 import { authStore } from '../../stores';
 import styles from './Login.module.css';
 
@@ -10,28 +11,6 @@ const Login = observer(() => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
-
-  // Handle OAuth redirect callback
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      // Check if Google redirected back with credential
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const credential = hashParams.get('id_token') || hashParams.get('credential');
-
-      if (credential) {
-        // Clear the hash from URL
-        window.history.replaceState(null, '', window.location.pathname);
-
-        // Login with the credential
-        const success = await authStore.loginWithGoogle(credential);
-        if (success) {
-          navigate('/dashboard');
-        }
-      }
-    };
-
-    handleOAuthCallback();
-  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +24,12 @@ const Login = observer(() => {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      authStore.error = 'No credential received from Google';
+      return;
+    }
+
     const success = await authStore.loginWithGoogle(credentialResponse.credential);
 
     if (success) {
@@ -120,7 +104,6 @@ const Login = observer(() => {
           theme="outline"
           size="large"
           text={isLogin ? "signin_with" : "signup_with"}
-          ux_mode="redirect"
         />
       </div>
 

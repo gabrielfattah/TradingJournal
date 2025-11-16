@@ -7,6 +7,16 @@ import { UserRegistration, UserLogin, JWTPayload } from '../types';
 
 const router = Router();
 
+// Google OAuth token response type
+interface GoogleTokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+  scope: string;
+  token_type: string;
+  id_token: string;
+}
+
 // Initialize Google OAuth client
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -181,7 +191,7 @@ router.post('/google/callback', async (req: Request, res: Response) => {
       throw new Error('Failed to exchange authorization code');
     }
 
-    const tokens = await tokenResponse.json();
+    const tokens = await tokenResponse.json() as GoogleTokenResponse;
 
     // Verify the ID token
     const ticket = await googleClient.verifyIdToken({
