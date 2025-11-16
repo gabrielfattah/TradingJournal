@@ -138,3 +138,37 @@
   justify-content: center;
   margin: 20px 0;
 }
+
+/* Custom Google Button */
+.googleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
+  background-color: white;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3);
+}
+
+.googleButton:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3);
+}
+
+.googleButton:active {
+  background-color: #f1f3f4;
+}
+
+.googleIcon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
