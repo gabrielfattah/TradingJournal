@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
 import { GoogleLogin } from '@react-oauth/google';
@@ -10,6 +10,28 @@ const Login = observer(() => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
+
+  // Handle OAuth redirect callback
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      // Check if Google redirected back with credential
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const credential = hashParams.get('id_token') || hashParams.get('credential');
+
+      if (credential) {
+        // Clear the hash from URL
+        window.history.replaceState(null, '', window.location.pathname);
+
+        // Login with the credential
+        const success = await authStore.loginWithGoogle(credential);
+        if (success) {
+          navigate('/dashboard');
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +121,6 @@ const Login = observer(() => {
           size="large"
           text={isLogin ? "signin_with" : "signup_with"}
           ux_mode="redirect"
-          redirect_uri="http://localhost:5173/auth/callback"
         />
       </div>
 
