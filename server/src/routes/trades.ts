@@ -1,3 +1,8 @@
+/**
+ * Trade Routes
+ * Handles CRUD operations for trading journal entries
+ */
+
 import { Router, Response } from 'express';
 import { verifyToken, AuthRequest } from '../middleware/verifyToken';
 import {
@@ -11,12 +16,18 @@ import { TradeInput } from '../types';
 
 const router = Router();
 
-// Apply authentication middleware to ALL routes in this file
-// Every route below will require a valid JWT token
+// Apply authentication middleware to all routes
+// All routes below require a valid JWT token
 router.use(verifyToken);
 
 /**
- * Helper function to calculate profit/loss
+ * Helper: Calculate profit/loss for a trade
+ *
+ * @param type - Trade type ('long' or 'short')
+ * @param entryPrice - Price when trade was opened
+ * @param exitPrice - Price when trade was closed
+ * @param size - Number of units traded
+ * @returns Object containing profit/loss amount and percentage
  */
 function calculateProfitLoss(
   type: 'long' | 'short',
@@ -25,16 +36,16 @@ function calculateProfitLoss(
   size: number
 ): { profitLoss: number; profitLossPercent: number } {
   let profitLoss: number;
-  
+
   if (type === 'long') {
-    // Long: profit when price goes up
+    // Long position: profit when price increases
     profitLoss = (exitPrice - entryPrice) * size;
   } else {
-    // Short: profit when price goes down
+    // Short position: profit when price decreases
     profitLoss = (entryPrice - exitPrice) * size;
   }
-  
-  // Calculate percentage
+
+  // Calculate percentage relative to initial investment
   const profitLossPercent = (profitLoss / (entryPrice * size)) * 100;
 
   return {
@@ -49,12 +60,9 @@ function calculateProfitLoss(
  */
 router.get('/', (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!; // We know it exists because verifyToken ran
-
-    // Get all trades for this user from SQLite
-    const userTrades = getAllTradesByUserId(userId);
-
-    res.json(userTrades);
+    const userId = req.userId!;
+    const trades = getAllTradesByUserId(userId);
+    res.json(trades);
   } catch (error) {
     console.error('Get trades error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -62,8 +70,23 @@ router.get('/', (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * GET /api/trades/stats
+ * Get trading statistics for the authenticated user
+ */
+router.get('/stats', (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const stats = getTradeStats(userId);
+    res.json(stats);
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
  * POST /api/trades
- * Create a new trade
+ * Create a new trade entry
  */
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -71,24 +94,23 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const { symbol, type, entryPrice, exitPrice, size, date, notes }: TradeInput = req.body;
 
     // Validate required fields
-    if (!symbol || !type || !entryPrice || !exitPrice || !size || !date) {
-      res.status(400).json({ error: 'Missing required fields: symbol, type, entryPrice, exitPrice, size, date' });
-      return;
+    if (!symbol || !type || entryPrice === undefined || exitPrice === undefined || !size || !date) {
+      return res.status(400).json({
+        error: 'Missing required fields: symbol, type, entryPrice, exitPrice, size, date'
+      });
     }
 
-    // Validate type
+    // Validate trade type
     if (type !== 'long' && type !== 'short') {
-      res.status(400).json({ error: 'Type must be "long" or "short"' });
-      return;
+      return res.status(400).json({ error: 'Type must be "long" or "short"' });
     }
 
-    // Validate numbers
+    // Validate numerical values
     if (entryPrice <= 0 || exitPrice <= 0 || size <= 0) {
-      res.status(400).json({ error: 'Prices and size must be positive numbers' });
-      return;
+      return res.status(400).json({ error: 'Prices and size must be positive numbers' });
     }
 
-    // Calculate profit/loss
+    // Calculate profit/loss metrics
     const { profitLoss, profitLossPercent } = calculateProfitLoss(
       type,
       entryPrice,
@@ -99,7 +121,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     // Create trade in database
     const newTrade = createTrade(
       userId,
-      symbol.toUpperCase(), // Standardize to uppercase
+      symbol.toUpperCase(), // Standardize symbol to uppercase
       type,
       entryPrice,
       exitPrice,
@@ -118,24 +140,6 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * GET /api/trades/stats
- * Get trading statistics for the authenticated user
- */
-router.get('/stats', (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.userId!;
-
-    // Get statistics from database
-    const stats = getTradeStats(userId);
-
-    res.json(stats);
-  } catch (error) {
-    console.error('Get stats error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-/**
  * PUT /api/trades/:id
  * Update an existing trade
  */
@@ -145,33 +149,26 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     const tradeId = req.params.id;
     const updates: Partial<TradeInput> = req.body;
 
-    // Validate if type is being updated
+    // Validate trade type if being updated
     if (updates.type && updates.type !== 'long' && updates.type !== 'short') {
-      res.status(400).json({ error: 'Type must be "long" or "short"' });
-      return;
+      return res.status(400).json({ error: 'Type must be "long" or "short"' });
     }
 
-    // Validate numbers if being updated
-    if (updates.entryPrice && updates.entryPrice <= 0) {
-      res.status(400).json({ error: 'Entry price must be positive' });
-      return;
+    // Validate numerical values if being updated
+    if (updates.entryPrice !== undefined && updates.entryPrice <= 0) {
+      return res.status(400).json({ error: 'Entry price must be positive' });
     }
-    if (updates.exitPrice && updates.exitPrice <= 0) {
-      res.status(400).json({ error: 'Exit price must be positive' });
-      return;
+    if (updates.exitPrice !== undefined && updates.exitPrice <= 0) {
+      return res.status(400).json({ error: 'Exit price must be positive' });
     }
-    if (updates.size && updates.size <= 0) {
-      res.status(400).json({ error: 'Size must be positive' });
-      return;
+    if (updates.size !== undefined && updates.size <= 0) {
+      return res.status(400).json({ error: 'Size must be positive' });
     }
 
-    // For SQLite update, we need all values not just updates
-    // Get existing trade first to merge values
+    // Get existing trade to merge with updates
     const existingTrade = getAllTradesByUserId(userId).find(t => t.id === tradeId);
-
     if (!existingTrade) {
-      res.status(404).json({ error: 'Trade not found' });
-      return;
+      return res.status(404).json({ error: 'Trade not found' });
     }
 
     // Merge updates with existing values
@@ -183,7 +180,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     const date = updates.date || existingTrade.date;
     const notes = updates.notes !== undefined ? updates.notes : existingTrade.notes || '';
 
-    // Recalculate P/L
+    // Recalculate profit/loss with new values
     const { profitLoss, profitLossPercent } = calculateProfitLoss(
       type,
       entryPrice,
@@ -207,8 +204,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     );
 
     if (!updatedTrade) {
-      res.status(404).json({ error: 'Trade not found' });
-      return;
+      return res.status(404).json({ error: 'Trade not found' });
     }
 
     res.json(updatedTrade);
@@ -227,12 +223,10 @@ router.delete('/:id', (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
     const tradeId = req.params.id;
 
-    // Delete trade from database
     const deleted = deleteTrade(tradeId, userId);
 
     if (!deleted) {
-      res.status(404).json({ error: 'Trade not found' });
-      return;
+      return res.status(404).json({ error: 'Trade not found' });
     }
 
     res.json({ message: 'Trade deleted successfully' });

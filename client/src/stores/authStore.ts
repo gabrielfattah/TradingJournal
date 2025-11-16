@@ -1,3 +1,8 @@
+/**
+ * Authentication Store
+ * Manages user authentication state using MobX
+ */
+
 import { makeAutoObservable } from 'mobx';
 import { authAPI } from '../services/api';
 import { AxiosError } from 'axios';
@@ -12,124 +17,124 @@ class AuthStore {
     makeAutoObservable(this);
   }
 
+  /**
+   * Check if user is authenticated
+   */
   get isAuthenticated(): boolean {
     return !!this.token;
   }
 
-  async login(username: string, password: string) {
-    this.isLoading = true;
-
-    try {
-      const response = await authAPI.login(username, password);
-      this.token = response.token;
-      this.username = response.username;
-
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('username', response.username);
-
-      this.error = null; // Clear error on success
-      return true;
-    } catch (err) {
-      // Type-safe error handling
-      if (err instanceof AxiosError) {
-        this.error = err.response?.data?.error || 'Login failed';
-      } else {
-        this.error = 'An unexpected error occurred';
-      }
-      return false;
-    } finally {
-      this.isLoading = false;
+  /**
+   * Helper: Handle authentication error
+   */
+  private handleAuthError(err: unknown, defaultMessage: string): void {
+    if (err instanceof AxiosError) {
+      this.error = err.response?.data?.error || defaultMessage;
+    } else {
+      this.error = 'An unexpected error occurred';
     }
   }
 
-  async register(username: string, password: string) {
+  /**
+   * Helper: Save authentication data to state and localStorage
+   */
+  private saveAuthData(token: string, username: string): void {
+    this.token = token;
+    this.username = username;
+    localStorage.setItem('token', token);
+    localStorage.setItem('username', username);
+    this.error = null; // Clear any previous errors
+  }
+
+  /**
+   * Register a new user
+   */
+  async register(username: string, password: string): Promise<boolean> {
     this.isLoading = true;
 
     try {
       const response = await authAPI.register(username, password);
-      this.token = response.token;
-      this.username = response.username;
-
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('username', response.username);
-
-      this.error = null; // Clear error on success
+      this.saveAuthData(response.token, response.username);
       return true;
     } catch (err) {
-      // Type-safe error handling
-      if (err instanceof AxiosError) {
-        this.error = err.response?.data?.error || 'Registration failed';
-      } else {
-        this.error = 'An unexpected error occurred';
-      }
+      this.handleAuthError(err, 'Registration failed');
       return false;
     } finally {
       this.isLoading = false;
     }
   }
 
-  async loginWithGoogle(credential: string) {
+  /**
+   * Login with username and password
+   */
+  async login(username: string, password: string): Promise<boolean> {
+    this.isLoading = true;
+
+    try {
+      const response = await authAPI.login(username, password);
+      this.saveAuthData(response.token, response.username);
+      return true;
+    } catch (err) {
+      this.handleAuthError(err, 'Login failed');
+      return false;
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * Login with Google credential (popup mode)
+   */
+  async loginWithGoogle(credential: string): Promise<boolean> {
     this.isLoading = true;
 
     try {
       const response = await authAPI.googleLogin(credential);
-      this.token = response.token;
-      this.username = response.username;
-
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('username', response.username);
-
-      this.error = null; // Clear error on success
+      this.saveAuthData(response.token, response.username);
       return true;
     } catch (err) {
-      // Type-safe error handling
-      if (err instanceof AxiosError) {
-        this.error = err.response?.data?.error || 'Google login failed';
-      } else {
-        this.error = 'An unexpected error occurred';
-      }
+      this.handleAuthError(err, 'Google login failed');
       return false;
     } finally {
       this.isLoading = false;
     }
   }
 
-  async loginWithGoogleCode(code: string) {
+  /**
+   * Login with Google authorization code (redirect mode)
+   */
+  async loginWithGoogleCode(code: string): Promise<boolean> {
     this.isLoading = true;
 
     try {
       const response = await authAPI.googleCodeLogin(code);
-      this.token = response.token;
-      this.username = response.username;
-
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('username', response.username);
-
-      this.error = null; // Clear error on success
+      this.saveAuthData(response.token, response.username);
       return true;
     } catch (err) {
-      // Type-safe error handling
-      if (err instanceof AxiosError) {
-        this.error = err.response?.data?.error || 'Google login failed';
-      } else {
-        this.error = 'An unexpected error occurred';
-      }
+      this.handleAuthError(err, 'Google login failed');
       return false;
     } finally {
       this.isLoading = false;
     }
   }
 
-  logout() {
+  /**
+   * Logout current user
+   */
+  logout(): void {
     this.token = null;
     this.username = null;
     localStorage.removeItem('token');
     localStorage.removeItem('username');
   }
 
-  clearError() {
+  /**
+   * Clear error message
+   */
+  clearError(): void {
     this.error = null;
   }
 }
 
+// Export singleton instance
 export const authStore = new AuthStore();
