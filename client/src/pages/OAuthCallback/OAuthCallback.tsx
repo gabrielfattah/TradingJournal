@@ -1,68 +1,93 @@
+/**
+ * OAuth Callback Page
+ * Handles Google OAuth redirect flow (both credential and authorization code)
+ * Processes authentication tokens and redirects to dashboard or login
+ */
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authStore } from '../../stores';
 import styles from './OAuthCallback.module.css';
 
+// Constants
+const LOGIN_ROUTE = '/login';
+const DASHBOARD_ROUTE = '/dashboard';
+const REDIRECT_DELAY = 3000; // 3 seconds
+
 const OAuthCallback = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Helper: Redirect to login after showing error
+   */
+  const redirectToLogin = (errorMessage: string) => {
+    setError(errorMessage);
+    setTimeout(() => navigate(LOGIN_ROUTE), REDIRECT_DELAY);
+  };
+
+  /**
+   * Helper: Process OAuth authentication result
+   * Handles both success and failure cases with appropriate navigation
+   */
+  const processAuthResult = async (
+    authFunction: () => Promise<boolean>,
+    fallbackError: string
+  ): Promise<void> => {
+    try {
+      const success = await authFunction();
+
+      if (success) {
+        navigate(DASHBOARD_ROUTE);
+      } else {
+        redirectToLogin(authStore.error || fallbackError);
+      }
+    } catch (err) {
+      redirectToLogin('An unexpected error occurred');
+    }
+  };
+
+  /**
+   * Effect: Handle OAuth callback on mount
+   * Extracts tokens from URL and processes authentication
+   */
   useEffect(() => {
     const handleCallback = async () => {
-      // Google redirects with credential in hash fragment
+      // Extract credential from hash fragment (popup mode)
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const credential = hashParams.get('id_token') || hashParams.get('credential');
 
-      // Also check query parameters
+      // Extract code and error from query parameters (redirect mode)
       const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get('code');
       const errorParam = searchParams.get('error');
 
+      // Handle OAuth error (user cancelled or provider error)
       if (errorParam) {
-        setError('Google authentication was cancelled or failed');
-        setTimeout(() => navigate('/login'), 3000);
+        redirectToLogin('Google authentication was cancelled or failed');
         return;
       }
 
-      // Try credential first (for redirect mode with GoogleLogin)
+      // Try credential-based authentication first (popup/redirect mode)
       if (credential) {
-        try {
-          const success = await authStore.loginWithGoogle(credential);
-
-          if (success) {
-            navigate('/dashboard');
-          } else {
-            setError(authStore.error || 'Login failed');
-            setTimeout(() => navigate('/login'), 3000);
-          }
-        } catch (err) {
-          setError('An unexpected error occurred');
-          setTimeout(() => navigate('/login'), 3000);
-        }
+        await processAuthResult(
+          () => authStore.loginWithGoogle(credential),
+          'Login failed'
+        );
         return;
       }
 
-      // Fallback to code (for auth-code flow)
+      // Fallback to authorization code flow
       if (code) {
-        try {
-          const success = await authStore.loginWithGoogleCode(code);
-
-          if (success) {
-            navigate('/dashboard');
-          } else {
-            setError(authStore.error || 'Login failed');
-            setTimeout(() => navigate('/login'), 3000);
-          }
-        } catch (err) {
-          setError('An unexpected error occurred');
-          setTimeout(() => navigate('/login'), 3000);
-        }
+        await processAuthResult(
+          () => authStore.loginWithGoogleCode(code),
+          'Login failed'
+        );
         return;
       }
 
-      // No credential or code found
-      setError('No authentication data received');
-      setTimeout(() => navigate('/login'), 3000);
+      // No authentication data found in URL
+      redirectToLogin('No authentication data received');
     };
 
     handleCallback();
@@ -72,6 +97,7 @@ const OAuthCallback = () => {
     <div className={styles.container}>
       <div className={styles.content}>
         {error ? (
+          // Error State
           <>
             <div className={styles.errorIcon}>✕</div>
             <h2 className={styles.errorTitle}>Authentication Failed</h2>
@@ -79,6 +105,7 @@ const OAuthCallback = () => {
             <p className={styles.redirect}>Redirecting to login...</p>
           </>
         ) : (
+          // Loading State
           <>
             <div className={styles.spinner}></div>
             <h2 className={styles.title}>Signing you in...</h2>
