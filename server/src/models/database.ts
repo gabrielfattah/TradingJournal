@@ -11,6 +11,9 @@ interface DBUser {
   id: string;
   username: string;
   password: string;
+  email?: string;
+  google_id?: string;
+  auth_provider?: string;
   created_at: string;
 }
 
@@ -38,6 +41,9 @@ function mapDBUserToUser(dbUser: DBUser): User {
     id: dbUser.id,
     username: dbUser.username,
     password: dbUser.password,
+    email: dbUser.email,
+    googleId: dbUser.google_id,
+    authProvider: dbUser.auth_provider,
     createdAt: dbUser.created_at,
   };
 }
@@ -307,6 +313,48 @@ export function getTradeStats(userId: string) {
       date: worstTrade.date,
     },
   };
+}
+
+// ==================== OAUTH OPERATIONS ====================
+
+/**
+ * Get user by Google ID
+ * Used for OAuth login
+ */
+export function getUserByGoogleId(googleId: string): User | undefined {
+  const stmt = db.prepare('SELECT * FROM users WHERE google_id = ?');
+  const dbUser = stmt.get(googleId) as DBUser | undefined;
+  return dbUser ? mapDBUserToUser(dbUser) : undefined;
+}
+
+/**
+ * Get user by email
+ * Used for OAuth and email lookups
+ */
+export function getUserByEmail(email: string): User | undefined {
+  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+  const dbUser = stmt.get(email) as DBUser | undefined;
+  return dbUser ? mapDBUserToUser(dbUser) : undefined;
+}
+
+/**
+ * Create OAuth user (Google login)
+ * Returns the created user
+ */
+export function createOAuthUser(
+  googleId: string,
+  email: string,
+  authProvider: string
+): User {
+  const id = generateId();
+  const stmt = db.prepare(`
+    INSERT INTO users (id, email, google_id, auth_provider)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  stmt.run(id, email, googleId, authProvider);
+
+  return getUserById(id)!;
 }
 
 /**

@@ -3,6 +3,9 @@ export interface User {
   id: string;
   username: string;
   password: string; // hashed password
+  email?: string;
+  googleId?: string;
+  authProvider?: string;
   createdAt: string;
 }
 

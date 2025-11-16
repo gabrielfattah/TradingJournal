@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
+import { GoogleLogin } from '@react-oauth/google';
 import { authStore } from '../../stores';
 import styles from './Login.module.css';
 
@@ -20,6 +21,18 @@ const Login = observer(() => {
     if (success) {
       navigate('/dashboard');
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    const success = await authStore.loginWithGoogle(credentialResponse.credential);
+
+    if (success) {
+      navigate('/dashboard');
+    }
+  };
+
+  const handleGoogleError = () => {
+    authStore.error = 'Google login failed. Please try again.';
   };
 
   const toggleMode = () => {
@@ -71,6 +84,22 @@ const Login = observer(() => {
           {authStore.isLoading ? 'Please wait...' : (isLogin ? 'Login' : 'Register')}
         </button>
       </form>
+
+      {/* Divider */}
+      <div className={styles.divider}>
+        <span>OR</span>
+      </div>
+
+      {/* Google Sign-In Button */}
+      <div className={styles.googleButtonContainer}>
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={handleGoogleError}
+          theme="outline"
+          size="large"
+          text={isLogin ? "signin_with" : "signup_with"}
+        />
+      </div>
 
       <p className={styles.toggleText}>
         {isLogin ? "Don't have an account? " : "Already have an account? "}
