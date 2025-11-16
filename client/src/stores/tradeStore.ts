@@ -1,3 +1,8 @@
+/**
+ * Trade Store
+ * Manages trading journal entries using MobX
+ */
+
 import { makeAutoObservable, runInAction } from 'mobx';
 import { tradesAPI } from '../services/api';
 import type { Trade, TradeInput } from '../types';
@@ -13,7 +18,21 @@ class TradeStore {
     makeAutoObservable(this);
   }
 
-  async fetchTrades() {
+  /**
+   * Helper: Handle trade operation error
+   */
+  private handleError(err: unknown, defaultMessage: string): void {
+    if (err instanceof AxiosError) {
+      this.error = err.response?.data?.error || defaultMessage;
+    } else {
+      this.error = 'An unexpected error occurred';
+    }
+  }
+
+  /**
+   * Fetch all trades for the current user
+   */
+  async fetchTrades(): Promise<void> {
     this.isLoading = true;
     this.error = null;
 
@@ -24,11 +43,7 @@ class TradeStore {
       });
     } catch (err) {
       runInAction(() => {
-        if (err instanceof AxiosError) {
-          this.error = err.response?.data?.error || 'Failed to fetch trades';
-        } else {
-          this.error = 'An unexpected error occurred';
-        }
+        this.handleError(err, 'Failed to fetch trades');
       });
     } finally {
       runInAction(() => {
@@ -37,21 +52,20 @@ class TradeStore {
     }
   }
 
-  async createTrade(trade: TradeInput) {
+  /**
+   * Create a new trade
+   */
+  async createTrade(trade: TradeInput): Promise<boolean> {
     this.isLoading = true;
     this.error = null;
 
     try {
       await tradesAPI.create(trade);
-      await this.fetchTrades();
+      await this.fetchTrades(); // Refresh trades list
       return true;
     } catch (err) {
       runInAction(() => {
-        if (err instanceof AxiosError) {
-          this.error = err.response?.data?.error || 'Failed to create trade';
-        } else {
-          this.error = 'An unexpected error occurred';
-        }
+        this.handleError(err, 'Failed to create trade');
       });
       return false;
     } finally {
@@ -61,24 +75,23 @@ class TradeStore {
     }
   }
 
-  async updateTrade(id: string, trade: Partial<TradeInput>) {
+  /**
+   * Update an existing trade
+   */
+  async updateTrade(id: string, trade: Partial<TradeInput>): Promise<boolean> {
     this.isLoading = true;
     this.error = null;
 
     try {
       await tradesAPI.update(id, trade);
-      await this.fetchTrades();
+      await this.fetchTrades(); // Refresh trades list
       runInAction(() => {
-        this.editingTrade = null;
+        this.editingTrade = null; // Clear editing state
       });
       return true;
     } catch (err) {
       runInAction(() => {
-        if (err instanceof AxiosError) {
-          this.error = err.response?.data?.error || 'Failed to update trade';
-        } else {
-          this.error = 'An unexpected error occurred';
-        }
+        this.handleError(err, 'Failed to update trade');
       });
       return false;
     } finally {
@@ -88,21 +101,20 @@ class TradeStore {
     }
   }
 
-  async deleteTrade(id: string) {
+  /**
+   * Delete a trade
+   */
+  async deleteTrade(id: string): Promise<boolean> {
     this.isLoading = true;
     this.error = null;
 
     try {
       await tradesAPI.delete(id);
-      await this.fetchTrades();
+      await this.fetchTrades(); // Refresh trades list
       return true;
     } catch (err) {
       runInAction(() => {
-        if (err instanceof AxiosError) {
-          this.error = err.response?.data?.error || 'Failed to delete trade';
-        } else {
-          this.error = 'An unexpected error occurred';
-        }
+        this.handleError(err, 'Failed to delete trade');
       });
       return false;
     } finally {
@@ -112,13 +124,20 @@ class TradeStore {
     }
   }
 
-  setEditingTrade(trade: Trade | null) {
+  /**
+   * Set the trade being edited
+   */
+  setEditingTrade(trade: Trade | null): void {
     this.editingTrade = trade;
   }
 
-  clearError() {
+  /**
+   * Clear error message
+   */
+  clearError(): void {
     this.error = null;
   }
 }
 
+// Export singleton instance
 export const tradeStore = new TradeStore();

@@ -1,3 +1,8 @@
+/**
+ * Authentication Routes
+ * Handles user registration, login, and Google OAuth authentication
+ */
+
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -7,57 +12,64 @@ import { UserRegistration, UserLogin, JWTPayload } from '../types';
 
 const router = Router();
 
-// Google OAuth token response type
-interface GoogleTokenResponse {
-  access_token: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  token_type: string;
-  id_token: string;
-}
+// Constants
+const BCRYPT_ROUNDS = 10;
+const JWT_EXPIRY = '7d';
+const MIN_PASSWORD_LENGTH = 6;
 
-// Initialize Google OAuth client
+// Google OAuth client initialization
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /**
+ * Helper: Generate JWT token for authenticated user
+ */
+function generateAuthToken(userId: string, username: string): string {
+  const payload: JWTPayload = { userId, username };
+  return jwt.sign(payload, process.env.JWT_SECRET as string, {
+    expiresIn: JWT_EXPIRY
+  });
+}
+
+/**
  * POST /api/auth/register
- * Register a new user
+ * Register a new user with username and password
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { username, password }: UserRegistration = req.body;
 
-    // Validate input
+    // Validate required fields
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    // Validate password length
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+      });
     }
 
-    // Check if user already exists
+    // Check if username already exists
     const existingUser = getUserByUsername(username);
     if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(409).json({ error: 'Username already exists' });
     }
 
-    // Hash password (never store plain text!)
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password before storing (never store plain text!)
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    // Create user in database
+    // Create new user in database
     const newUser = createUser(username, hashedPassword);
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: newUser.id, username: newUser.username } as JWTPayload,
-      process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
-    );
+    // Generate JWT authentication token
+    const token = generateAuthToken(newUser.id, newUser.username!);
 
-    // Return token (don't send password back!)
-    res.status(201).json({ token, username: newUser.username });
+    // Return token and username
+    res.status(201).json({
+      token,
+      username: newUser.username
+    });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -66,37 +78,37 @@ router.post('/register', async (req: Request, res: Response) => {
 
 /**
  * POST /api/auth/login
- * Login an existing user
+ * Authenticate existing user with username and password
  */
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password }: UserLogin = req.body;
 
-    // Validate input
+    // Validate required fields
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    // Find user
+    // Find user by username
     const user = getUserByUsername(username);
-    if (!user) {
+    if (!user || !user.password) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, username: user.username } as JWTPayload,
-      process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
-    );
+    // Generate JWT authentication token
+    const token = generateAuthToken(user.id, user.username!);
 
-    res.json({ token, username: user.username });
+    // Return token and username
+    res.json({
+      token,
+      username: user.username
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -105,131 +117,50 @@ router.post('/login', async (req: Request, res: Response) => {
 
 /**
  * POST /api/auth/google
- * Verify Google credential and login/register user
+ * Authenticate with Google OAuth (Popup mode)
+ * Verifies Google ID token and creates/logs in user
  */
 router.post('/google', async (req: Request, res: Response) => {
   try {
     const { credential } = req.body;
 
+    // Validate credential presence
     if (!credential) {
       return res.status(400).json({ error: 'Google credential required' });
     }
 
-    // Verify the credential with Google
+    // Verify Google ID token
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
-
     if (!payload) {
       return res.status(401).json({ error: 'Invalid Google token' });
     }
 
-    const googleId = payload.sub;           // Google's unique user ID
-    const email = payload.email!;           // User's email
-    const name = payload.name || email;     // User's name
+    // Extract user information from Google payload
+    const googleId = payload.sub;
+    const email = payload.email!;
 
-    // Find user by Google ID
+    // Find existing user or create new one
     let user = getUserByGoogleId(googleId);
-
-    // If not found, create new user
     if (!user) {
       user = createOAuthUser(googleId, email, 'google');
     }
 
-    // Generate JWT token (same as regular login)
-    const token = jwt.sign(
-      { userId: user.id, username: user.email || user.username },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
-    );
+    // Generate JWT authentication token
+    const token = generateAuthToken(user.id, user.email || user.username!);
 
     // Return token and username
     res.json({
       token,
       username: user.email || user.username
     });
-
   } catch (error) {
     console.error('Google OAuth error:', error);
     res.status(401).json({ error: 'Invalid Google credentials' });
-  }
-});
-
-/**
- * POST /api/auth/google/callback
- * Handle Google OAuth redirect callback (Redirect mode)
- */
-router.post('/google/callback', async (req: Request, res: Response) => {
-  try {
-    const { code } = req.body;
-
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' });
-    }
-
-    // Exchange authorization code for tokens
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: 'http://localhost:5173/auth/callback',
-        grant_type: 'authorization_code',
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error('Token exchange failed:', errorData);
-      throw new Error('Failed to exchange authorization code');
-    }
-
-    const tokens = await tokenResponse.json() as GoogleTokenResponse;
-
-    // Verify the ID token
-    const ticket = await googleClient.verifyIdToken({
-      idToken: tokens.id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-
-    if (!payload) {
-      return res.status(401).json({ error: 'Invalid Google token' });
-    }
-
-    const googleId = payload.sub;
-    const email = payload.email!;
-
-    // Find or create user
-    let user = getUserByGoogleId(googleId);
-
-    if (!user) {
-      user = createOAuthUser(googleId, email, 'google');
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, username: user.email || user.username },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      token,
-      username: user.email || user.username
-    });
-
-  } catch (error) {
-    console.error('Google OAuth callback error:', error);
-    res.status(401).json({ error: 'Google authentication failed' });
   }
 });
 
