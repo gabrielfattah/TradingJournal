@@ -25,19 +25,11 @@ const Login = observer(() => {
   };
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    if (newValue !== username && authStore.error) {
-      authStore.clearError();
-    }
-    setUsername(newValue);
+    setUsername(e.target.value);
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    if (newValue !== password && authStore.error) {
-      authStore.clearError();
-    }
-    setPassword(newValue);
+    setPassword(e.target.value);
   };
 
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
