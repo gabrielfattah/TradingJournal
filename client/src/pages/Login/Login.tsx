@@ -24,13 +24,6 @@ const Login = observer(() => {
     }
   };
 
-  const handleInputFocus = () => {
-    // Clear error when user starts typing in any field
-    if (authStore.error) {
-      authStore.clearError();
-    }
-  };
-
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUsername(e.target.value);
   };
@@ -75,7 +68,6 @@ const Login = observer(() => {
             type="text"
             value={username}
             onChange={handleUsernameChange}
-            onFocus={handleInputFocus}
             required
             className={styles.input}
           />
@@ -87,7 +79,6 @@ const Login = observer(() => {
             type="password"
             value={password}
             onChange={handlePasswordChange}
-            onFocus={handleInputFocus}
             required
             minLength={6}
             className={styles.input}
