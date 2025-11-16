@@ -98,6 +98,8 @@ const Login = observer(() => {
           theme="outline"
           size="large"
           text={isLogin ? "signin_with" : "signup_with"}
+          ux_mode="redirect"
+          redirect_uri="http://localhost:5173/auth/callback"
         />
       </div>
 

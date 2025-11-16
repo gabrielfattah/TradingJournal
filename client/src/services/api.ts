@@ -58,6 +58,13 @@ export const authAPI = {
     });
     return response.data;
   },
+
+  googleCodeLogin: async (code: string): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/api/auth/google/callback', {
+      code,
+    });
+    return response.data;
+  },
 };
 
 // Trades API

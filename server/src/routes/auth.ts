@@ -148,4 +148,79 @@ router.post('/google', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/auth/google/callback
+ * Handle Google OAuth redirect callback (Redirect mode)
+ */
+router.post('/google/callback', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    // Exchange authorization code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: 'http://localhost:5173/auth/callback',
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('Token exchange failed:', errorData);
+      throw new Error('Failed to exchange authorization code');
+    }
+
+    const tokens = await tokenResponse.json();
+
+    // Verify the ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid Google token' });
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email!;
+
+    // Find or create user
+    let user = getUserByGoogleId(googleId);
+
+    if (!user) {
+      user = createOAuthUser(googleId, email, 'google');
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, username: user.email || user.username },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      username: user.email || user.username
+    });
+
+  } catch (error) {
+    console.error('Google OAuth callback error:', error);
+    res.status(401).json({ error: 'Google authentication failed' });
+  }
+});
+
 export default router;
