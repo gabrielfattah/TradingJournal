@@ -142,9 +142,9 @@ const Login = observer(() => {
         <GoogleLogin
           onSuccess={handleGoogleSuccess}
           onError={handleGoogleError}
-          theme="outline"
           size="large"
           text={isLogin ? "signin_with" : "signup_with"}
+          theme="filled_black"
         />
       </div>
 
