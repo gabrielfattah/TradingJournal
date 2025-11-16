@@ -50,15 +50,41 @@ class AuthStore {
       const response = await authAPI.register(username, password);
       this.token = response.token;
       this.username = response.username;
-      
+
       localStorage.setItem('token', response.token);
       localStorage.setItem('username', response.username);
-      
+
       return true;
     } catch (err) {
       // Type-safe error handling
       if (err instanceof AxiosError) {
         this.error = err.response?.data?.error || 'Registration failed';
+      } else {
+        this.error = 'An unexpected error occurred';
+      }
+      return false;
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  async loginWithGoogle(credential: string) {
+    this.isLoading = true;
+    this.error = null;
+
+    try {
+      const response = await authAPI.googleLogin(credential);
+      this.token = response.token;
+      this.username = response.username;
+
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('username', response.username);
+
+      return true;
+    } catch (err) {
+      // Type-safe error handling
+      if (err instanceof AxiosError) {
+        this.error = err.response?.data?.error || 'Google login failed';
       } else {
         this.error = 'An unexpected error occurred';
       }

@@ -51,6 +51,13 @@ export const authAPI = {
     });
     return response.data;
   },
+
+  googleLogin: async (credential: string): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/api/auth/google', {
+      credential,
+    });
+    return response.data;
+  },
 };
 
 // Trades API

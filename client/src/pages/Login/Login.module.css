@@ -110,3 +110,31 @@
 .toggleButton:hover {
   color: #0056b3;
 }
+
+/* Divider */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: #666;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #ddd;
+}
+
+.divider span {
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+/* Google Button Container */
+.googleButtonContainer {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}

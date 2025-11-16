@@ -9,15 +9,21 @@ export const SCHEMA = {
   /**
    * Users table - stores user accounts
    * - id: Unique identifier (UUID)
-   * - username: Unique username for login
-   * - password: Bcrypt hashed password
+   * - username: Unique username for login (optional for OAuth users)
+   * - password: Bcrypt hashed password (optional for OAuth users)
+   * - email: User email address
+   * - google_id: Google's unique user ID (for OAuth)
+   * - auth_provider: Authentication method ('local' or 'google')
    * - created_at: Account creation timestamp
    */
   users: `
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
+      username TEXT UNIQUE,
+      password TEXT,
+      email TEXT UNIQUE,
+      google_id TEXT UNIQUE,
+      auth_provider TEXT DEFAULT 'local',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `,

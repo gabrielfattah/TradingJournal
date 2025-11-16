@@ -1,10 +1,14 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { getUserByUsername, createUser } from '../models/database';
+import { OAuth2Client } from 'google-auth-library';
+import { getUserByUsername, createUser, getUserByGoogleId, createOAuthUser } from '../models/database';
 import { UserRegistration, UserLogin, JWTPayload } from '../types';
 
 const router = Router();
+
+// Initialize Google OAuth client
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /**
  * POST /api/auth/register
@@ -86,6 +90,61 @@ router.post('/login', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /api/auth/google
+ * Verify Google credential and login/register user
+ */
+router.post('/google', async (req: Request, res: Response) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential required' });
+    }
+
+    // Verify the credential with Google
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid Google token' });
+    }
+
+    const googleId = payload.sub;           // Google's unique user ID
+    const email = payload.email!;           // User's email
+    const name = payload.name || email;     // User's name
+
+    // Find user by Google ID
+    let user = getUserByGoogleId(googleId);
+
+    // If not found, create new user
+    if (!user) {
+      user = createOAuthUser(googleId, email, 'google');
+    }
+
+    // Generate JWT token (same as regular login)
+    const token = jwt.sign(
+      { userId: user.id, username: user.email || user.username },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    // Return token and username
+    res.json({
+      token,
+      username: user.email || user.username
+    });
+
+  } catch (error) {
+    console.error('Google OAuth error:', error);
+    res.status(401).json({ error: 'Invalid Google credentials' });
   }
 });
 
