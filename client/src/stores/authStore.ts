@@ -18,16 +18,16 @@ class AuthStore {
 
   async login(username: string, password: string) {
     this.isLoading = true;
-    this.error = null;
 
     try {
       const response = await authAPI.login(username, password);
       this.token = response.token;
       this.username = response.username;
-      
+
       localStorage.setItem('token', response.token);
       localStorage.setItem('username', response.username);
-      
+
+      this.error = null; // Clear error on success
       return true;
     } catch (err) {
       // Type-safe error handling
@@ -44,7 +44,6 @@ class AuthStore {
 
   async register(username: string, password: string) {
     this.isLoading = true;
-    this.error = null;
 
     try {
       const response = await authAPI.register(username, password);
@@ -54,6 +53,7 @@ class AuthStore {
       localStorage.setItem('token', response.token);
       localStorage.setItem('username', response.username);
 
+      this.error = null; // Clear error on success
       return true;
     } catch (err) {
       // Type-safe error handling
@@ -70,7 +70,6 @@ class AuthStore {
 
   async loginWithGoogle(credential: string) {
     this.isLoading = true;
-    this.error = null;
 
     try {
       const response = await authAPI.googleLogin(credential);
@@ -80,6 +79,7 @@ class AuthStore {
       localStorage.setItem('token', response.token);
       localStorage.setItem('username', response.username);
 
+      this.error = null; // Clear error on success
       return true;
     } catch (err) {
       // Type-safe error handling
@@ -96,7 +96,6 @@ class AuthStore {
 
   async loginWithGoogleCode(code: string) {
     this.isLoading = true;
-    this.error = null;
 
     try {
       const response = await authAPI.googleCodeLogin(code);
@@ -106,6 +105,7 @@ class AuthStore {
       localStorage.setItem('token', response.token);
       localStorage.setItem('username', response.username);
 
+      this.error = null; // Clear error on success
       return true;
     } catch (err) {
       // Type-safe error handling

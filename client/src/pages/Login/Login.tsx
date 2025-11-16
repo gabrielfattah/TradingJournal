@@ -14,13 +14,27 @@ const Login = observer(() => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const success = isLogin
       ? await authStore.login(username, password)
       : await authStore.register(username, password);
 
     if (success) {
       navigate('/dashboard');
+    }
+  };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value);
+    if (authStore.error) {
+      authStore.clearError();
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+    if (authStore.error) {
+      authStore.clearError();
     }
   };
 
@@ -43,6 +57,8 @@ const Login = observer(() => {
 
   const toggleMode = () => {
     setIsLogin(!isLogin);
+    setUsername('');
+    setPassword('');
     authStore.clearError();
   };
 
@@ -57,7 +73,7 @@ const Login = observer(() => {
           <input
             type="text"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={handleUsernameChange}
             required
             className={styles.input}
           />
@@ -68,7 +84,7 @@ const Login = observer(() => {
           <input
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
             required
             minLength={6}
             className={styles.input}
